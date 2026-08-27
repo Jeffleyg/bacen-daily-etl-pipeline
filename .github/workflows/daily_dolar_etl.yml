@@ -2,10 +2,8 @@ name: Daily USD/BRL Quant Pipeline
 
 on:
   schedule:
-    # Executa de segunda a sexta-feira às 22:00 UTC (19:00 Horário de Brasília)
-    # Momento em que o BACEN já consolidou a cotação PTAX de fechamento do dia
     - cron: '0 22 * * 1-5'
-  workflow_dispatch: # Permite disparar o pipeline manualmente a qualquer momento pelo botão no GitHub
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,27 +13,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout do Repositório
+      - name: Checkout do Repositório
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🐍 Configurar Ambiente Python
+      - name: Configurar Python
         uses: setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: 📦 Instalar Dependências
+      - name: Instalar Dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests pandas pyarrow fastparquet numpy
 
-      - name: ⚡ Executar Pipeline ETL do BACEN
+      - name: Executar Pipeline ETL
         run: |
-          python etl_dolar.py
+          if [ -f "etl_dolar.py" ]; then
+            python etl_dolar.py
+          elif [ -f "etl_pipeline.py" ]; then
+            python etl_pipeline.py
+          fi
 
-      - name: 💾 Persistir e Sincronizar Base Parquet no Repositório
+      - name: Commit e Push dos Dados
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add dolar_master_analytics.parquet
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(data): automated daily USD/BRL market update [skip ci]" && git push origin main)
+          git add -A
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore(data): automated market update [skip ci]" && git push)
